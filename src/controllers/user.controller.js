@@ -32,4 +32,38 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, null, "User created successfully."));
 });
 
-export { registerUser, loginUser };
+const loginUser = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+
+  if ([email, password].some((field) => field?.trim() === "")) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "All fields are required."));
+  }
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).json(new ApiResponse(404, null, "User not found."));
+  }
+
+  const isPasswordCorrect = await user.isPasswordCorrect(password);
+  if (!isPasswordCorrect) {
+    return res
+      .status(401)
+      .json(new ApiResponse(401, null, "Invalid credentials."));
+  }
+
+  const token = user.generateAccessToken();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { token }, "Login successful."));
+});
+
+const logoutUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "User logged out successfully."));
+});
+
+export { registerUser, loginUser, logoutUser };

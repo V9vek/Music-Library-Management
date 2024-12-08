@@ -21,6 +21,10 @@ const userSchema = new Schema(
       enum: ["Admin", "Editor", "Viewer"],
       default: "Viewer",
     },
+    admin: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
   { timestamps: true }
 );
@@ -33,7 +37,7 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-// utility functions 
+// utility functions
 userSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
