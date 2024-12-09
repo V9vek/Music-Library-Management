@@ -7,7 +7,7 @@ const ArtistSchema = new Schema(
       required: [true, "Artist name is required"],
     },
     grammy: {
-      type: Boolean,
+      type: Number,
       default: false,
     },
     hidden: {

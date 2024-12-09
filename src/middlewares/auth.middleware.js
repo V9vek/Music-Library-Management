@@ -16,7 +16,7 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
 
     const user = await User.findById(decodedToken?._id);
     if (!user) {  
-      return res.status(401).json(new ApiResponse(401, null, "Invalid token"));
+      return res.status(401).json(new ApiResponse(401, null, "User not found."));
     }
 
     req.user = user;

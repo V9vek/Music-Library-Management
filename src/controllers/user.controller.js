@@ -203,7 +203,7 @@ const addUserUnderAdmin = asyncHandler(async (req, res) => {
 });
 
 const deleteUser = asyncHandler(async (req, res) => {
-  const { _id } = req.params;
+  const { id: _id } = req.params;
   const adminId = req.user._id;
 
   try {
