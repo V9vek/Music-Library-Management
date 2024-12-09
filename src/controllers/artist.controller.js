@@ -120,7 +120,9 @@ const updateArtist = asyncHandler(async (req, res) => {
 
     return res
       .status(201)
-      .json(new ApiResponse(201, null, "Artist updated successfully."));
+      .json(
+        new ApiResponse(201, updatedArtist, "Artist updated successfully.")
+      );
   } catch (error) {
     return res
       .status(500)

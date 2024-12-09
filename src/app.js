@@ -16,8 +16,10 @@ app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 //routes
 import userRouter from "./routes/user.routes.js";
 import artistRouter from "./routes/artist.routes.js";
+import albumRouter from "./routes/album.routes.js";
 
 app.use("/api/v1", userRouter);
 app.use("/api/v1/artists", artistRouter);
+app.use("/api/v1/albums", albumRouter);
 
 export { app };
