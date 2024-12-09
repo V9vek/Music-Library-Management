@@ -3,16 +3,21 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Album } from "../models/album.model.js";
 import { Artist } from "../models/artist.model.js";
+import { Track } from "../models/track.model.js";
 
-const getAllAlbums = asyncHandler(async (req, res) => {
-  const { artist_id, hidden, limit = 5, offset = 0 } = req.query;
+const getAllTracks = asyncHandler(async (req, res) => {
+  const { album_id, artist_id, limit = 5, offset = 0 } = req.query;
 
   try {
     const query = {};
+    if (album_id) query.album = album_id;
     if (artist_id) query.artist = artist_id;
-    if (hidden) query.hidden = hidden === "true";
 
-    const albums = await Album.find(query)
+    const albums = await Track.find(query)
+      .populate({
+        path: "album",
+        select: "name -_id",
+      })
       .populate({
         path: "artist",
         select: "name -_id",
@@ -23,7 +28,7 @@ const getAllAlbums = asyncHandler(async (req, res) => {
 
     return res
       .status(200)
-      .json(new ApiResponse(200, albums, "Albums retrieved successfully."));
+      .json(new ApiResponse(200, albums, "Tracks retrieved successfully."));
   } catch (error) {
     return res
       .status(500)
@@ -31,11 +36,11 @@ const getAllAlbums = asyncHandler(async (req, res) => {
   }
 });
 
-const getAlbumById = asyncHandler(async (req, res) => {
+const getTrackById = asyncHandler(async (req, res) => {
   const { id: _id } = req.params;
 
   try {
-    // Validate album_id is a valid ObjectId
+    // Validate track_id is a valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(_id)) {
       return res
         .status(400)
@@ -43,27 +48,31 @@ const getAlbumById = asyncHandler(async (req, res) => {
           new ApiResponse(
             400,
             null,
-            "Invalid album_id format. Must be a valid ObjectId."
+            "Invalid track_id format. Must be a valid ObjectId."
           )
         );
     }
 
-    const album = await Album.findById(_id)
+    const track = await Track.findById(_id)
+      .populate({
+        path: "album",
+        select: "name -_id",
+      })
       .populate({
         path: "artist",
         select: "name -_id",
       })
       .select("-createdAt -updatedAt -__v");
 
-    if (!album) {
+    if (!track) {
       return res
         .status(404)
-        .json(new ApiResponse(404, null, "Album not found."));
+        .json(new ApiResponse(404, null, "Track not found."));
     }
 
     return res
       .status(200)
-      .json(new ApiResponse(200, album, "Album retrieved successfully."));
+      .json(new ApiResponse(200, track, "Track retrieved successfully."));
   } catch (error) {
     return res
       .status(500)
@@ -71,15 +80,19 @@ const getAlbumById = asyncHandler(async (req, res) => {
   }
 });
 
-const addAlbum = asyncHandler(async (req, res) => {
-  const { name, artist_id, year, hidden } = req.body;
+const addTrack = asyncHandler(async (req, res) => {
+  const { name, duration, album_id, artist_id, hidden } = req.body;
   const userRole = req.user.role;
 
-  if (!name || !artist_id || !year) {
+  if (!name || !duration || !album_id || !artist_id) {
     return res
       .status(400)
       .json(
-        new ApiResponse(400, null, "Name, artist_id, and year are required.")
+        new ApiResponse(
+          400,
+          null,
+          "Name, duration, album_id, and artist_id are required."
+        )
       );
   }
 
@@ -91,6 +104,27 @@ const addAlbum = asyncHandler(async (req, res) => {
         .json(
           new ApiResponse(403, null, "Forbidden: Only Admins can add albums.")
         );
+    }
+
+    // Validate album_id is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(album_id)) {
+      return res
+        .status(400)
+        .json(
+          new ApiResponse(
+            400,
+            null,
+            "Invalid album_id format. Must be a valid ObjectId."
+          )
+        );
+    }
+
+    // validate album with album_id exists
+    const album = Album.findById(album_id);
+    if (!album) {
+      return res
+        .status(404)
+        .json(new ApiResponse(404, null, `Album with ${album_id} not found.`));
     }
 
     // Validate artist_id is a valid ObjectId
@@ -107,7 +141,7 @@ const addAlbum = asyncHandler(async (req, res) => {
     }
 
     // validate artist with artist_id exists
-    const artist = Artist.findOne({ _id: artist_id });
+    const artist = Artist.findById(artist_id);
     if (!artist) {
       return res
         .status(404)
@@ -116,16 +150,17 @@ const addAlbum = asyncHandler(async (req, res) => {
         );
     }
 
-    await Album.create({
-      name: name,
-      year: year,
-      hidden: hidden || false,
+    await Track.create({
+      name,
+      duration,
+      album: album_id,
       artist: artist_id,
+      hidden: hidden || false,
     });
 
     return res
       .status(201)
-      .json(new ApiResponse(201, null, "Album created successfully."));
+      .json(new ApiResponse(201, null, "Track created successfully."));
   } catch (error) {
     return res
       .status(500)
@@ -133,9 +168,9 @@ const addAlbum = asyncHandler(async (req, res) => {
   }
 });
 
-const updateAlbum = asyncHandler(async (req, res) => {
+const updateTrack = asyncHandler(async (req, res) => {
   const { id: _id } = req.params;
-  const { name, artist_id, year, hidden } = req.body;
+  const { name, duration, album_id, artist_id, hidden } = req.body;
   const userRole = req.user.role;
 
   try {
@@ -147,9 +182,32 @@ const updateAlbum = asyncHandler(async (req, res) => {
           new ApiResponse(
             403,
             null,
-            "Forbidden: Only Admins and Editor can update albums."
+            "Forbidden: Only Admins and Editor can update tracks."
           )
         );
+    }
+
+    // validate album if exist with album_id
+    if (album_id) {
+      // Validate album_id is a valid ObjectId
+      if (!mongoose.Types.ObjectId.isValid(album_id)) {
+        return res
+          .status(400)
+          .json(
+            new ApiResponse(
+              400,
+              null,
+              "Invalid album_id format. Must be a valid ObjectId."
+            )
+          );
+      }
+
+      const album = await Album.findById(album_id);
+      if (!album) {
+        return res
+          .status(404)
+          .json(new ApiResponse(404, null, "Album not found."));
+      }
     }
 
     // validate artist if exist with artist_id
@@ -167,15 +225,15 @@ const updateAlbum = asyncHandler(async (req, res) => {
           );
       }
 
-      const artist = await Artist.findOne({ _id: artist_id });
+      const artist = await Artist.findById(artist_id);
       if (!artist) {
         return res
           .status(404)
-          .json(new ApiResponse(404, artist, "Artist not found."));
+          .json(new ApiResponse(404, null, "Artist not found."));
       }
     }
 
-    // Validate album_id is a valid ObjectId
+    // Validate track_id is a valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(_id)) {
       return res
         .status(400)
@@ -183,33 +241,37 @@ const updateAlbum = asyncHandler(async (req, res) => {
           new ApiResponse(
             400,
             null,
-            "Invalid album_id format. Must be a valid ObjectId."
+            "Invalid track_id format. Must be a valid ObjectId."
           )
         );
     }
 
-    const updatedAlbum = await Album.findByIdAndUpdate(
+    const updatedTrack = await Track.findByIdAndUpdate(
       _id,
       {
-        $set: {
-          name: name,
-          artist: artist_id,
-          year: year,
-          hidden: hidden,
-        },
+        $set: { name, duration, album: album_id, artist: artist_id, hidden },
       },
       { new: true }
-    );
+    )
+      .populate({
+        path: "album",
+        select: "name -_id",
+      })
+      .populate({
+        path: "artist",
+        select: "name -_id",
+      })
+      .select("-createdAt -updatedAt -__v");
 
-    if (!updatedAlbum) {
+    if (!updatedTrack) {
       return res
         .status(404)
-        .json(new ApiResponse(404, updatedAlbum, `Album not found.`));
+        .json(new ApiResponse(404, null, `Track not found.`));
     }
 
     return res
       .status(201)
-      .json(new ApiResponse(201, updatedAlbum, "Album updated successfully."));
+      .json(new ApiResponse(201, updatedTrack, "Track updated successfully."));
   } catch (error) {
     return res
       .status(500)
@@ -217,7 +279,7 @@ const updateAlbum = asyncHandler(async (req, res) => {
   }
 });
 
-const deleteAlbum = asyncHandler(async (req, res) => {
+const deleteTrack = asyncHandler(async (req, res) => {
   const { id: _id } = req.params;
   const userRole = req.user.role;
 
@@ -235,7 +297,7 @@ const deleteAlbum = asyncHandler(async (req, res) => {
         );
     }
 
-    // Validate album_id is a valid ObjectId
+    // Validate track_id is a valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(_id)) {
       return res
         .status(400)
@@ -243,17 +305,17 @@ const deleteAlbum = asyncHandler(async (req, res) => {
           new ApiResponse(
             400,
             null,
-            "Invalid album_id format. Must be a valid ObjectId."
+            "Invalid track_id format. Must be a valid ObjectId."
           )
         );
     }
 
-    const deletedAlbum = await Album.findByIdAndDelete(_id);
+    const deletedTrack = await Track.findByIdAndDelete(_id);
 
-    if (!deletedAlbum) {
+    if (!deletedTrack) {
       return res
         .status(404)
-        .json(new ApiResponse(404, null, "Album not found."));
+        .json(new ApiResponse(404, null, "Track not found."));
     }
 
     return res
@@ -262,7 +324,7 @@ const deleteAlbum = asyncHandler(async (req, res) => {
         new ApiResponse(
           200,
           null,
-          `Album:${deletedAlbum.name} deleted successfully.`
+          `Track:${deletedAlbum.name} deleted successfully.`
         )
       );
   } catch (error) {
@@ -272,4 +334,4 @@ const deleteAlbum = asyncHandler(async (req, res) => {
   }
 });
 
-export { getAllAlbums, getAlbumById, addAlbum, updateAlbum, deleteAlbum };
+export { getAllTracks, getTrackById, addTrack, updateTrack, deleteTrack };
